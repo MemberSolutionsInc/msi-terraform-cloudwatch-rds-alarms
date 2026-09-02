@@ -24,9 +24,16 @@ locals {
 
   # Flatten instance x severity-tier into one map per metric, keyed by
   # "<instance>-<tier>", so each metric below is a single for_each
-  # resource regardless of how many tiers a given instance defines for it
-  # (a metric an instance doesn't define at all, or sets to null,
-  # contributes no entries).
+  # resource regardless of how many tiers a given instance defines for it.
+  #
+  # Every per-tier attribute is `optional(number)` on an object type, and
+  # Terraform's object type conversion backfills an omitted optional
+  # attribute as an explicit `null` (it does not just leave the key
+  # missing) - confirmed live: an instance that only sets `info`/`ticket`
+  # for cpu_credit_balance still produces a `critical = null` entry when
+  # iterated over. Every `for` below filters those out explicitly
+  # (`if val != null`); without this, a null threshold value reaches the
+  # alarm resource's string interpolation and fails at plan/apply time.
 
   cpu_alarms = merge([
     for name, inst in var.instances : {
@@ -34,7 +41,7 @@ locals {
         instance = name
         tier     = tier
         percent  = pct
-      }
+      } if pct != null
     }
   ]...)
 
@@ -44,7 +51,7 @@ locals {
         instance = name
         tier     = tier
         bytes    = inst.allocated_storage_gb * 1073741824 * pct / 100
-      }
+      } if pct != null
     }
   ]...)
 
@@ -54,7 +61,7 @@ locals {
         instance = name
         tier     = tier
         bytes    = inst.instance_memory_bytes * pct / 100
-      }
+      } if pct != null
     }
   ]...)
 
@@ -64,7 +71,7 @@ locals {
         instance = name
         tier     = tier
         count    = count
-      }
+      } if count != null
     }
   ]...)
 
@@ -74,7 +81,7 @@ locals {
         instance = name
         tier     = tier
         credits  = credits
-      }
+      } if credits != null
     }
   ]...)
 }
